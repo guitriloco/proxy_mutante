@@ -2,8 +2,8 @@ name: Motor Mutante Proxy
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Roda a cada 6 horas no piloto automático
-  workflow_dispatch: # Adiciona um botão pra você disparar manualmente quando quiser
+    - cron: '0 * * * *' # /GLITCH: Relógio cravado para rodar a cada 1 HORA
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,17 +18,17 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Instalar Dependências
+    - name: /SOMBRA - Instalar Dependências Táticas
       run: |
         python -m pip install --upgrade pip
-        pip install requests urllib3
+        pip install requests urllib3 pysocks
 
-    - name: Executar Motor Mutante
+    - name: Executar Cérebro Separador
       run: python proxy_mutante.py
 
-    - name: /CARRASCO - Subir Munição Viva
+    - name: /CARRASCO - Subir Arsenal Classificado
       run: |
         git config --global user.name 'Entidade 12'
         git config --global user.email 'bot@imperiomutante.com'
-        git add MUNICAO_VIVA.txt
-        git diff --quiet && git diff --staged --quiet || (git commit -m "[AUTO] Atualização de Proxies Vivos" && git push)
+        git add *.txt
+        git diff --quiet && git diff --staged --quiet || (git commit -m "[AUTO] Arsenal Renovou: SOCKS5, SOCKS4 e HTTP" && git push)
