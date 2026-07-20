@@ -13,17 +13,21 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================================
 TIMEOUT_EXTRACAO = 10
 TIMEOUT_TESTE = 5 
-ARQUIVO_SAIDA = "MUNICAO_VIVA.txt"
-REGEX_IP_PORTA = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{2,5}\b'
-# /GLITCH: Alvo alterado para Cloudflare (Imune a Rate-Limit com 100 Threads)
 ALVO_TESTE = "http://cloudflare.com/cdn-cgi/trace"
+REGEX_IP_PORTA = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{2,5}\b'
 
+# Pool Expandido de User-Agents para evitar bloqueios nas fontes
 AGENTES = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Edge/124.0.0.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0'
 ]
 
-# /CARRASCO: list(set()) destrói URLs duplicadas para economizar tempo de máquina
+# Frota Completa de Endpoints Integrada
 FROTA_TOTAL = list(set([
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5&timeout=3000&country=all&ssl=all&anonymity=elite",
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=3000&country=all&ssl=all&anonymity=elite",
@@ -122,25 +126,36 @@ FROTA_TOTAL = list(set([
 ]))
 
 def raspar_site(url):
+    # /GLITCH: Detecta o protocolo lendo a string da URL
+    url_lower = url.lower()
+    if "socks5" in url_lower: 
+        proto = "socks5"
+    elif "socks4" in url_lower: 
+        proto = "socks4"
+    else: 
+        proto = "http" # Engloba HTTP e HTTPS
+
     headers = {'User-Agent': random.choice(AGENTES)}
     try:
         resposta = requests.get(url, headers=headers, timeout=TIMEOUT_EXTRACAO, verify=False)
         if resposta.status_code == 200:
-            return re.findall(REGEX_IP_PORTA, resposta.text)
+            ips = re.findall(REGEX_IP_PORTA, resposta.text)
+            return [(proto, ip) for ip in set(ips)]
     except:
         pass
     return []
 
-def testar_proxy(proxy):
+def testar_proxy(item):
+    proto, ip = item
     proxies = {
-        "http": f"http://{proxy}",
-        "https": f"http://{proxy}"
+        "http": f"{proto}://{ip}",
+        "https": f"{proto}://{ip}"
     }
     try:
-        # Purgando mortos no alvo blindado
+        # /CARRASCO: Bate no alvo usando o túnel exato do protocolo
         res = requests.get(ALVO_TESTE, proxies=proxies, timeout=TIMEOUT_TESTE)
         if res.status_code == 200:
-            return proxy
+            return item
     except:
         pass
     return None
@@ -148,35 +163,40 @@ def testar_proxy(proxy):
 if __name__ == "__main__":
     inicio = time.time()
     print(f"\n[+] PROTOCOLO /SINCRO ATIVADO [+]")
-    print(f"[+] /SOMBRA: Extraindo de {len(FROTA_TOTAL)} fontes deduplicadas...")
+    print(f"[+] FROTAS CARREGADAS: {len(FROTA_TOTAL)} APIs prontas para varredura.")
 
-    todos_proxies = set()
+    todos_proxies = []
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=60) as executor:
+    # FASE 1: EXTRAÇÃO CATEGORIZADA (COM MULTITHREADING)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=80) as executor:
         futuros = {executor.submit(raspar_site, url): url for url in FROTA_TOTAL}
         for futuro in concurrent.futures.as_completed(futuros):
             resultado = futuro.result()
             if resultado:
-                todos_proxies.update(resultado)
+                todos_proxies.extend(resultado)
 
-    print(f"[+] /MUTAR: {len(todos_proxies)} IPs brutos. Iniciando filtragem letal...")
+    # Remove duplicatas globais
+    todos_proxies = list(set(todos_proxies))
+    print(f"[+] /MUTAR: {len(todos_proxies)} IPs brutos extraídos. Iniciando purga letal...")
 
-    proxies_vivos = set()
+    vivos = {"socks5": set(), "socks4": set(), "http": set()}
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+    # FASE 2: TESTE COM NEURO-TOXINA (MULTITHREADING)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=150) as executor:
         futuros_teste = {executor.submit(testar_proxy, p): p for p in todos_proxies}
         for futuro in concurrent.futures.as_completed(futuros_teste):
-            vivo = futuro.result()
-            if vivo:
-                proxies_vivos.add(vivo)
+            resultado = futuro.result()
+            if resultado:
+                proto, ip = resultado
+                vivos[proto].add(ip)
 
-    if proxies_vivos:
-        with open(ARQUIVO_SAIDA, "w") as f:
-            for p in sorted(proxies_vivos):
-                f.write(f"{p}\n")
-        
-        print(f"\n[✔] /SOBERANIA: {len(proxies_vivos)} proxies vivos confirmados.")
-        print(f"[✔] ARQUIVO: {ARQUIVO_SAIDA}")
-        print(f"[✔] TEMPO DE EXECUÇÃO: {time.time() - inicio:.2f}s")
-    else:
-        print("[!] FALHA: Nenhum proxy sobreviveu ao teste.")
+    # FASE 3: EXPORTAÇÃO SEPARADA POR PROTOCOLO
+    for proto in vivos:
+        if vivos[proto]:
+            nome_arquivo = f"{proto}.txt"
+            with open(nome_arquivo, "w") as f:
+                for ip in sorted(vivos[proto]):
+                    f.write(f"{ip}\n")
+            print(f"[✔] {proto.upper()}: {len(vivos[proto])} proxies armados salvos em ({nome_arquivo}).")
+
+    print(f"\n[✔] CICLO CONCLUÍDO EM: {time.time() - inicio:.2f}s")
