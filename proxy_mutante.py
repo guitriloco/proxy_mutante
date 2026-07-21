@@ -9,25 +9,26 @@ import random
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ==============================================================================
-# CONFIGURAÇÃO: NÚCLEO OPERACIONAL (ENTIDADE 12)
+# CONFIGURAÇÃO: NÚCLEO OPERACIONAL E AUDITORIA (ENTIDADE 12)
 # ==============================================================================
-TIMEOUT_EXTRACAO = 10
-TIMEOUT_TESTE = 5 
-ALVO_TESTE = "http://cloudflare.com/cdn-cgi/trace"
-REGEX_IP_PORTA = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{2,5}\b'
+TIMEOUT_EXTRACAO = 4
+TIMEOUT_TESTE_BASE = 2   # FASE 3: Alvo de Velocidade Bruta (Cloudflare)
+TIMEOUT_TESTE_ELITE = 3  # FASE 2: Alvo de Auditoria de Anonimato (HttpBin)
 
-# Pool Expandido de User-Agents para evitar bloqueios nas fontes
+ALVO_VELOCIDADE = "http://cloudflare.com/cdn-cgi/trace"
+ALVO_ANONIMATO = "http://httpbin.org/get"
+
+# /MUTAR: Regex pré-compilado na memória para Latência Negativa em larga escala
+REGEX_IP_PORTA = re.compile(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{2,5}\b')
+
 AGENTES = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Edge/124.0.0.0',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0'
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148'
 ]
 
-# Frota Completa de Endpoints Integrada
+# FASE 1: INGESTÃO DE NOVAS FROTAS (ALTA ROTAÇÃO)
 FROTA_TOTAL = list(set([
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5&timeout=3000&country=all&ssl=all&anonymity=elite",
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=3000&country=all&ssl=all&anonymity=elite",
@@ -126,77 +127,111 @@ FROTA_TOTAL = list(set([
 ]))
 
 def raspar_site(url):
-    # /GLITCH: Detecta o protocolo lendo a string da URL
     url_lower = url.lower()
-    if "socks5" in url_lower: 
-        proto = "socks5"
-    elif "socks4" in url_lower: 
-        proto = "socks4"
-    else: 
-        proto = "http" # Engloba HTTP e HTTPS
+    if "socks5" in url_lower: proto = "socks5"
+    elif "socks4" in url_lower: proto = "socks4"
+    else: proto = "http"
 
-    headers = {'User-Agent': random.choice(AGENTES)}
+    # /SOMBRA: Headers expandidos para evitar bloqueios WAF (Web Application Firewall)
+    headers = {
+        'User-Agent': random.choice(AGENTES),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    }
+    
     try:
-        resposta = requests.get(url, headers=headers, timeout=TIMEOUT_EXTRACAO, verify=False)
-        if resposta.status_code == 200:
-            ips = re.findall(REGEX_IP_PORTA, resposta.text)
+        res = requests.get(url, headers=headers, timeout=TIMEOUT_EXTRACAO, verify=False)
+        if res.status_code == 200:
+            ips = REGEX_IP_PORTA.findall(res.text)
             return [(proto, ip) for ip in set(ips)]
     except:
         pass
     return []
 
-def testar_proxy(item):
+def auditoria_mutante(item):
     proto, ip = item
-    proxies = {
-        "http": f"{proto}://{ip}",
-        "https": f"{proto}://{ip}"
-    }
+    proxies = {"http": f"{proto}://{ip}", "https": f"{proto}://{ip}"}
+    
+    # FASE 3: Múltiplos Alvos (Teste de Velocidade e Rejeição)
     try:
-        # /CARRASCO: Bate no alvo usando o túnel exato do protocolo
-        res = requests.get(ALVO_TESTE, proxies=proxies, timeout=TIMEOUT_TESTE)
-        if res.status_code == 200:
-            return item
+        inicio_ping = time.time()
+        res_vel = requests.get(ALVO_VELOCIDADE, proxies=proxies, timeout=TIMEOUT_TESTE_BASE)
+        if res_vel.status_code != 200:
+            return None
+        
+        latencia = int((time.time() - inicio_ping) * 1000)
+        is_elite = False
+
+        # FASE 2: Filtro de Elite (Auditoria de Headers e Anonimato)
+        try:
+            res_anon = requests.get(ALVO_ANONIMATO, proxies=proxies, timeout=TIMEOUT_TESTE_ELITE)
+            if res_anon.status_code == 200:
+                dados = res_anon.json()
+                headers = str(dados.get("headers", {})).lower()
+                # Se X-Forwarded-For ou Via estiverem ausentes, o proxy é blindado (Elite)
+                if "x-forwarded-for" not in headers and "via" not in headers:
+                    is_elite = True
+        except:
+            pass # Se falhar no httpbin mas passou no Cloudflare, salva normal, mas não é elite.
+
+        # Retorna os dados mapeados para ordenação
+        return (proto, ip, latencia, is_elite)
     except:
         pass
     return None
 
 if __name__ == "__main__":
-    inicio = time.time()
-    print(f"\n[+] PROTOCOLO /SINCRO ATIVADO [+]")
-    print(f"[+] FROTAS CARREGADAS: {len(FROTA_TOTAL)} APIs prontas para varredura.")
+    inicio_geral = time.time()
+    print(f"\n[+] PROTOCOLO /MUTAR ATIVADO [+]")
+    print(f"[+] INGESTÃO: {len(FROTA_TOTAL)} Fontes de Alta Rotação.")
 
     todos_proxies = []
     
-    # FASE 1: EXTRAÇÃO CATEGORIZADA (COM MULTITHREADING)
+    # Extração Massiva Multi-thread
     with concurrent.futures.ThreadPoolExecutor(max_workers=80) as executor:
         futuros = {executor.submit(raspar_site, url): url for url in FROTA_TOTAL}
         for futuro in concurrent.futures.as_completed(futuros):
-            resultado = futuro.result()
-            if resultado:
-                todos_proxies.extend(resultado)
+            res = futuro.result()
+            if res:
+                todos_proxies.extend(res)
 
-    # Remove duplicatas globais
     todos_proxies = list(set(todos_proxies))
-    print(f"[+] /MUTAR: {len(todos_proxies)} IPs brutos extraídos. Iniciando purga letal...")
+    
+    # Trava de Segurança Custo Zero: Corta excessos para não estourar o limite de tempo do GitHub Actions
+    if len(todos_proxies) > 5000:
+        todos_proxies = random.sample(todos_proxies, 5000)
 
-    vivos = {"socks5": set(), "socks4": set(), "http": set()}
+    print(f"[+] CARRASCO: {len(todos_proxies)} IPs brutos. Testando contra múltiplos alvos...")
 
-    # FASE 2: TESTE COM NEURO-TOXINA (MULTITHREADING)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=150) as executor:
-        futuros_teste = {executor.submit(testar_proxy, p): p for p in todos_proxies}
+    vivos = {"socks5": [], "socks4": [], "http": [], "elite": []}
+
+    # Teste de Guerra e Classificação
+    with concurrent.futures.ThreadPoolExecutor(max_workers=200) as executor:
+        futuros_teste = {executor.submit(auditoria_mutante, p): p for p in todos_proxies}
         for futuro in concurrent.futures.as_completed(futuros_teste):
             resultado = futuro.result()
             if resultado:
-                proto, ip = resultado
-                vivos[proto].add(ip)
+                proto, ip, latencia, is_elite = resultado
+                
+                # Guarda no protocolo padrão junto com a latência (para ordenação) APENAS o IP
+                vivos[proto].append((latencia, ip))
+                
+                # /SOBERANIA: Injeta no pool de Elite APENAS o IP cru (Sem o prefixo)
+                if is_elite:
+                    vivos["elite"].append((latencia, ip))
 
-    # FASE 3: EXPORTAÇÃO SEPARADA POR PROTOCOLO
-    for proto in vivos:
-        if vivos[proto]:
-            nome_arquivo = f"{proto}.txt"
+    # Exportação Tática (Ordenados dos mais rápidos para os mais lentos)
+    for chave in vivos:
+        if vivos[chave]:
+            nome_arquivo = f"{chave}.txt"
+            # Ordena pelo menor tempo de latência [0] e pega apenas o IP [1]
+            ips_ordenados = [item[1] for item in sorted(vivos[chave])]
+            
+            # Remove duplicatas que podem ter passado de protocolos mistos no Elite
+            ips_ordenados = list(dict.fromkeys(ips_ordenados))
+            
             with open(nome_arquivo, "w") as f:
-                for ip in sorted(vivos[proto]):
+                for ip in ips_ordenados:
                     f.write(f"{ip}\n")
-            print(f"[✔] {proto.upper()}: {len(vivos[proto])} proxies armados salvos em ({nome_arquivo}).")
+            print(f"[✔] {chave.upper()}: {len(ips_ordenados)} nós armados ({nome_arquivo}).")
 
-    print(f"\n[✔] CICLO CONCLUÍDO EM: {time.time() - inicio:.2f}s")
+    print(f"\n[✔] ROTAÇÃO CONCLUÍDA EM: {time.time() - inicio_geral:.2f}s")
