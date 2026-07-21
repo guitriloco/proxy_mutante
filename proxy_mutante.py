@@ -11,9 +11,9 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================================
 # CONFIGURAÇÃO: NÚCLEO OPERACIONAL E AUDITORIA (ENTIDADE 12)
 # ==============================================================================
-TIMEOUT_EXTRACAO = 4
-TIMEOUT_TESTE_BASE = 2   # FASE 3: Alvo de Velocidade Bruta (Cloudflare)
-TIMEOUT_TESTE_ELITE = 3  # FASE 2: Alvo de Auditoria de Anonimato (HttpBin)
+TIMEOUT_EXTRACAO = 8
+TIMEOUT_TESTE_BASE = 5   # FASE 3: Alvo de Velocidade Bruta (Cloudflare)
+TIMEOUT_TESTE_ELITE = 5  # FASE 2: Alvo de Auditoria de Anonimato (HttpBin)
 
 ALVO_VELOCIDADE = "http://cloudflare.com/cdn-cgi/trace"
 ALVO_ANONIMATO = "http://httpbin.org/get"
@@ -28,33 +28,45 @@ AGENTES = [
     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148'
 ]
 
-# FASE 1: INGESTÃO DE NOVAS FROTAS (ALTA ROTAÇÃO)
+# /APOGEU: INGESTÃO DE NOVAS FROTAS (ALTA ROTAÇÃO) - MAIS DE 90 FONTES ATIVAS
 FROTA_TOTAL = list(set([
-    "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5&timeout=3000&country=all&ssl=all&anonymity=elite",
-    "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=3000&country=all&ssl=all&anonymity=elite",
-    "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks4&timeout=3000&country=all&ssl=all&anonymity=elite",
+    # APIs Públicas de Alta Densidade
+    "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5&timeout=5000&country=all&ssl=all&anonymity=elite",
+    "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=elite",
+    "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks4&timeout=5000&country=all&ssl=all&anonymity=elite",
     "https://www.proxy-list.download/api/v1/get?type=socks5",
     "https://www.proxy-list.download/api/v1/get?type=https",
     "https://www.proxy-list.download/api/v1/get?type=http",
     "https://api.openproxylist.xyz/socks5.txt",
     "https://api.openproxylist.xyz/http.txt",
     "https://api.proxyscrape.com/v3/free-proxy-list/get?request=getproxies&protocol=socks5&proxy_format=ipport&format=text",
+    "https://api.proxyscrape.com/v3/free-proxy-list/get?request=getproxies&protocol=http&proxy_format=ipport&format=text",
+    
+    # Listas do GitHub - Infantaria Padrão
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt",
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
     "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt",
+    "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks5.txt",
+    "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks4.txt",
     "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks5.txt",
     "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
     "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt",
     "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS4_RAW.txt",
     "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt",
     "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
+    "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks4/data.txt",
     "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/http/data.txt",
     "https://raw.githubusercontent.com/prxchk/proxy-list/main/socks5.txt",
+    "https://raw.githubusercontent.com/prxchk/proxy-list/main/http.txt",
+    
+    # Fontes Adicionais (Novas Injeções)
     "https://raw.githubusercontent.com/B4RC0DE-TM/proxy-list/main/SOCKS5.txt",
-    "https://raw.githubusercontent.com/B4RC0DE-7/proxy-list/main/SOCKS5.txt",
+    "https://raw.githubusercontent.com/B4RC0DE-TM/proxy-list/main/HTTP.txt",
     "https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/socks5.txt",
+    "https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/http.txt",
     "https://raw.githubusercontent.com/HyperBeats/proxy-list/main/socks5.txt",
+    "https://raw.githubusercontent.com/HyperBeats/proxy-list/main/http.txt",
     "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/socks5.txt",
     "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/socks4.txt",
     "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/https.txt",
@@ -67,13 +79,11 @@ FROTA_TOTAL = list(set([
     "https://raw.githubusercontent.com/officialputuid/KangProxy/KangProxy/socks5/socks5.txt",
     "https://raw.githubusercontent.com/officialputuid/KangProxy/KangProxy/socks4/socks4.txt",
     "https://raw.githubusercontent.com/officialputuid/KangProxy/KangProxy/http/http.txt",
-    "https://raw.githubusercontent.com/officialputuid/Proxy-List/master/socks5.txt",
-    "https://raw.githubusercontent.com/officialputuid/Proxy-List/master/http.txt",
     "https://raw.githubusercontent.com/rdavydov/proxy-list/main/proxies/socks5.txt",
     "https://raw.githubusercontent.com/rdavydov/proxy-list/main/proxies/http.txt",
     "https://raw.githubusercontent.com/zloi-user/hideip.me/main/socks5.txt",
+    "https://raw.githubusercontent.com/zloi-user/hideip.me/main/http.txt",
     "https://raw.githubusercontent.com/vakhov/fresh-proxy-list/master/socks5.txt",
-    "https://raw.githubusercontent.com/vakhov/fresh-proxy-list/master/socks4.txt",
     "https://raw.githubusercontent.com/vakhov/fresh-proxy-list/master/http.txt",
     "https://raw.githubusercontent.com/MuRongPIG/Proxy-Master/main/socks5.txt",
     "https://raw.githubusercontent.com/MuRongPIG/Proxy-Master/main/http.txt",
@@ -91,13 +101,10 @@ FROTA_TOTAL = list(set([
     "https://raw.githubusercontent.com/ALIILAPRO/Proxy/main/http.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/Proxy/main/socks5.txt",
     "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/http_proxies.txt",
-    "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/socks4_proxies.txt",
     "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/socks5_proxies.txt",
     "https://raw.githubusercontent.com/UptimerBot/proxy-list/main/proxies/http.txt",
-    "https://raw.githubusercontent.com/UptimerBot/proxy-list/main/proxies/socks4.txt",
     "https://raw.githubusercontent.com/UptimerBot/proxy-list/main/proxies/socks5.txt",
     "https://raw.githubusercontent.com/Zaeem20/FREE_PROXIES_LIST/master/http.txt",
-    "https://raw.githubusercontent.com/Zaeem20/FREE_PROXIES_LIST/master/socks4.txt",
     "https://raw.githubusercontent.com/Zaeem20/FREE_PROXIES_LIST/master/socks5.txt",
     "https://raw.githubusercontent.com/caliphdev/Proxy-List/master/http.txt",
     "https://raw.githubusercontent.com/caliphdev/Proxy-List/master/socks5.txt",
@@ -109,21 +116,16 @@ FROTA_TOTAL = list(set([
     "https://raw.githubusercontent.com/Toffanello/Free-Proxy-List/main/proxies.txt",
     "https://alexa.lr2b.com/proxylist.txt",
     "https://multiproxy.org/txt_all/proxy.txt",
-    "https://api.proxyscrape.com/v3/free-proxy-list/get?request=getproxies&proxy_format=ipport&format=text",
     "https://raw.githubusercontent.com/tbbt-proxy/proxies/main/socks5.txt",
     "https://raw.githubusercontent.com/yuceltoluyag/GoodProxy/main/proxies.txt",
     "https://raw.githubusercontent.com/almroot/proxylist/master/list.txt",
     "https://raw.githubusercontent.com/scuxi/free-proxy-list/main/proxy.txt",
-    "https://raw.githubusercontent.com/prxchk/proxy-list/main/http.txt",
     "https://raw.githubusercontent.com/saisuiu/Configs-All/main/proxies/free.txt",
     "https://raw.githubusercontent.com/v1k0d3n/proxies/main/socks5.txt",
     "https://raw.githubusercontent.com/v1k0d3n/proxies/main/http.txt",
     "https://raw.githubusercontent.com/elliottophellia/yakumo/master/results/socks5/global/socks5_checked.txt",
     "https://raw.githubusercontent.com/fate0/proxylist/master/proxy.list",
-    "https://raw.githubusercontent.com/orx77/proxies/main/socks5.txt",
-    "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks4/data.txt",
-    "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks5.txt",
-    "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks4.txt"
+    "https://raw.githubusercontent.com/orx77/proxies/main/socks5.txt"
 ]))
 
 def raspar_site(url):
@@ -132,7 +134,7 @@ def raspar_site(url):
     elif "socks4" in url_lower: proto = "socks4"
     else: proto = "http"
 
-    # /SOMBRA: Headers expandidos para evitar bloqueios WAF (Web Application Firewall)
+    # /SOMBRA: Headers expandidos para evitar bloqueios WAF
     headers = {
         'User-Agent': random.choice(AGENTES),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
@@ -171,9 +173,8 @@ def auditoria_mutante(item):
                 if "x-forwarded-for" not in headers and "via" not in headers:
                     is_elite = True
         except:
-            pass # Se falhar no httpbin mas passou no Cloudflare, salva normal, mas não é elite.
+            pass
 
-        # Retorna os dados mapeados para ordenação
         return (proto, ip, latencia, is_elite)
     except:
         pass
@@ -196,37 +197,32 @@ if __name__ == "__main__":
 
     todos_proxies = list(set(todos_proxies))
     
-    # Trava de Segurança Custo Zero: Corta excessos para não estourar o limite de tempo do GitHub Actions
-    if len(todos_proxies) > 5000:
-        todos_proxies = random.sample(todos_proxies, 5000)
+    # /CARRASCO: Trava ampliada para engolir até 25.000 IPs por ciclo de 1 hora
+    if len(todos_proxies) > 25000:
+        todos_proxies = random.sample(todos_proxies, 25000)
 
-    print(f"[+] CARRASCO: {len(todos_proxies)} IPs brutos. Testando contra múltiplos alvos...")
+    print(f"[+] CARRASCO: {len(todos_proxies)} IPs brutos. Disparando teste de auditoria pesada...")
 
     vivos = {"socks5": [], "socks4": [], "http": [], "elite": []}
 
-    # Teste de Guerra e Classificação
-    with concurrent.futures.ThreadPoolExecutor(max_workers=200) as executor:
+    # Teste de Guerra e Classificação (Overclock para 300 workers)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=300) as executor:
         futuros_teste = {executor.submit(auditoria_mutante, p): p for p in todos_proxies}
         for futuro in concurrent.futures.as_completed(futuros_teste):
             resultado = futuro.result()
             if resultado:
                 proto, ip, latencia, is_elite = resultado
                 
-                # Guarda no protocolo padrão junto com a latência (para ordenação) APENAS o IP
                 vivos[proto].append((latencia, ip))
                 
-                # /SOBERANIA: Injeta no pool de Elite APENAS o IP cru (Sem o prefixo)
                 if is_elite:
                     vivos["elite"].append((latencia, ip))
 
-    # Exportação Tática (Ordenados dos mais rápidos para os mais lentos)
+    # Exportação Tática
     for chave in vivos:
         if vivos[chave]:
             nome_arquivo = f"{chave}.txt"
-            # Ordena pelo menor tempo de latência [0] e pega apenas o IP [1]
             ips_ordenados = [item[1] for item in sorted(vivos[chave])]
-            
-            # Remove duplicatas que podem ter passado de protocolos mistos no Elite
             ips_ordenados = list(dict.fromkeys(ips_ordenados))
             
             with open(nome_arquivo, "w") as f:
