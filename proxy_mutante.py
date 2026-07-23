@@ -1,36 +1,48 @@
-import requests
+import asyncio
+import aiohttp
 import re
-import concurrent.futures
-import urllib3
 import time
 import random
+import os
+import json
+import urllib3
 
-# Protocolo de Silêncio SSL
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Protocolo de Silêncio
+urllib3.disable_warnings()
 
 # ==============================================================================
-# CONFIGURAÇÃO: NÚCLEO OPERACIONAL E AUDITORIA (ENTIDADE 12)
+# CONFIGURAÇÃO: NÚCLEO OPERACIONAL (ENTIDADE 12)
 # ==============================================================================
-TIMEOUT_EXTRACAO = 8
-TIMEOUT_TESTE_BASE = 5   # FASE 3: Alvo de Velocidade Bruta (Cloudflare)
-TIMEOUT_TESTE_ELITE = 5  # FASE 2: Alvo de Auditoria de Anonimato (HttpBin)
+LIMITADOR_CONEXOES = 1500  # Quantas conexões simultâneas a máquina aguenta
+TIMEOUT_TESTE = aiohttp.ClientTimeout(total=5)
 
-ALVO_VELOCIDADE = "http://cloudflare.com/cdn-cgi/trace"
-ALVO_ANONIMATO = "http://httpbin.org/get"
+ALVOS_VELOCIDADE = [
+    "http://cloudflare.com/cdn-cgi/trace",
+    "http://1.1.1.1/cdn-cgi/trace"
+]
+ALVOS_ANONIMATO = [
+    "http://httpbin.org/get",
+    "http://azenv.net/",
+    "http://ip-api.com/json/"
+]
 
-# /MUTAR: Regex pré-compilado na memória para Latência Negativa em larga escala
 REGEX_IP_PORTA = re.compile(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{2,5}\b')
+REGEX_PAIS = re.compile(r'loc=([A-Z]{2})')
 
+# /SOMBRA: Arsenal de Agentes Disfarçados
 AGENTES = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148'
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 ]
 
-# /APOGEU: INGESTÃO DE NOVAS FROTAS (ALTA ROTAÇÃO) - MAIS DE 90 FONTES ATIVAS
-FROTA_TOTAL = list(set([
-    # APIs Públicas de Alta Densidade
+# Telemetria Secreta
+WEBHOOK_URL = os.getenv('WEBHOOK_URL', '')
+
+# FROTA TOTAL (Com vírgulas corrigidas e padronizadas)
+FROTA_TOTAL = [
+    "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5",
+    "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5&timeout=5000&country=all&ssl=all&anonymity=elite",
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=elite",
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks4&timeout=5000&country=all&ssl=all&anonymity=elite",
@@ -39,11 +51,12 @@ FROTA_TOTAL = list(set([
     "https://www.proxy-list.download/api/v1/get?type=http",
     "https://api.openproxylist.xyz/socks5.txt",
     "https://api.openproxylist.xyz/http.txt",
-    "https://api.proxyscrape.com/v3/free-proxy-list/get?request=getproxies&protocol=socks5&proxy_format=ipport&format=text",
-    "https://api.proxyscrape.com/v3/free-proxy-list/get?request=getproxies&protocol=http&proxy_format=ipport&format=text",
-    
-    # Listas do GitHub - Infantaria Padrão
-    "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
+    "https://spys.me/proxy.txt",
+    "https://spys.me/socks.txt",
+    "https://proxyspace.pro/http.txt",
+    "https://proxyspace.pro/https.txt",
+    "https://proxyspace.pro/socks4.txt",
+    "https://proxyspace.pro/socks5.txt",
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt",
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
     "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt",
@@ -52,17 +65,14 @@ FROTA_TOTAL = list(set([
     "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks5.txt",
     "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
     "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt",
-    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS4_RAW.txt",
     "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt",
     "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
-    "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks4/data.txt",
     "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/http/data.txt",
-    "https://raw.githubusercontent.com/prxchk/proxy-list/main/socks5.txt",
-    "https://raw.githubusercontent.com/prxchk/proxy-list/main/http.txt",
-    
-    # Fontes Adicionais (Novas Injeções)
     "https://raw.githubusercontent.com/B4RC0DE-TM/proxy-list/main/SOCKS5.txt",
     "https://raw.githubusercontent.com/B4RC0DE-TM/proxy-list/main/HTTP.txt",
+    "https://raw.githubusercontent.com/UserR3X/proxy-list/main/online/http.txt",
+    "https://raw.githubusercontent.com/UserR3X/proxy-list/main/online/socks4.txt",
+    "https://raw.githubusercontent.com/UserR3X/proxy-list/main/online/socks5.txt",
     "https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/socks5.txt",
     "https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/http.txt",
     "https://raw.githubusercontent.com/HyperBeats/proxy-list/main/socks5.txt",
@@ -125,109 +135,121 @@ FROTA_TOTAL = list(set([
     "https://raw.githubusercontent.com/v1k0d3n/proxies/main/http.txt",
     "https://raw.githubusercontent.com/elliottophellia/yakumo/master/results/socks5/global/socks5_checked.txt",
     "https://raw.githubusercontent.com/fate0/proxylist/master/proxy.list",
-    "https://raw.githubusercontent.com/orx77/proxies/main/socks5.txt"
-]))
+    "https://raw.githubusercontent.com/orx77/proxies/main/socks5.txt",
+    "https://api.proxyscrape.com/v3/free-proxy-list/get?request=getproxies&protocol=socks5&proxy_format=ipport&format=text",
+    "https://api.proxyscrape.com/v3/free-proxy-list/get?request=getproxies&protocol=http&proxy_format=ipport&format=text",
+    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS4_RAW.txt",
+    "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/socks4_proxies.txt",
+    "https://raw.githubusercontent.com/hookzof/socks4_list/master/proxy.txt",
+    "https://raw.githubusercontent.com/obhai/Proxy-List/main/socks4.txt",
+    "https://raw.githubusercontent.com/obhai/Proxy-List/main/socks5.txt",
+    "https://raw.githubusercontent.com/obhai/Proxy-List/main/http.txt"
+]
 
-def raspar_site(url):
+def obter_headers():
+    return {'User-Agent': random.choice(AGENTES), 'Connection': 'keep-alive'}
+
+async def raspar_site(session, url):
     url_lower = url.lower()
-    if "socks5" in url_lower: proto = "socks5"
-    elif "socks4" in url_lower: proto = "socks4"
-    else: proto = "http"
-
-    # /SOMBRA: Headers expandidos para evitar bloqueios WAF
-    headers = {
-        'User-Agent': random.choice(AGENTES),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-    }
-    
+    proto = "socks5" if "socks5" in url_lower else "socks4" if "socks4" in url_lower else "http"
     try:
-        res = requests.get(url, headers=headers, timeout=TIMEOUT_EXTRACAO, verify=False)
-        if res.status_code == 200:
-            ips = REGEX_IP_PORTA.findall(res.text)
-            return [(proto, ip) for ip in set(ips)]
+        async with session.get(url, headers=obter_headers(), ssl=False) as res:
+            if res.status == 200:
+                texto = await res.text()
+                ips = REGEX_IP_PORTA.findall(texto)
+                return [(proto, ip) for ip in set(ips)]
     except:
         pass
     return []
 
-def auditoria_mutante(item):
-    proto, ip = item
-    proxies = {"http": f"{proto}://{ip}", "https": f"{proto}://{ip}"}
-    
-    # FASE 3: Múltiplos Alvos (Teste de Velocidade e Rejeição)
-    try:
-        inicio_ping = time.time()
-        res_vel = requests.get(ALVO_VELOCIDADE, proxies=proxies, timeout=TIMEOUT_TESTE_BASE)
-        if res_vel.status_code != 200:
-            return None
+async def testar_proxy(sem, session, proto, ip):
+    async with sem:
+        proxy_url = f"{proto}://{ip}"
+        alvo_vel = random.choice(ALVOS_VELOCIDADE)
         
-        latencia = int((time.time() - inicio_ping) * 1000)
-        is_elite = False
-
-        # FASE 2: Filtro de Elite (Auditoria de Headers e Anonimato)
         try:
-            res_anon = requests.get(ALVO_ANONIMATO, proxies=proxies, timeout=TIMEOUT_TESTE_ELITE)
-            if res_anon.status_code == 200:
-                dados = res_anon.json()
-                headers = str(dados.get("headers", {})).lower()
-                # Se X-Forwarded-For ou Via estiverem ausentes, o proxy é blindado (Elite)
-                if "x-forwarded-for" not in headers and "via" not in headers:
-                    is_elite = True
+            inicio = time.time()
+            async with session.get(alvo_vel, proxy=proxy_url, timeout=TIMEOUT_TESTE, ssl=False) as res_vel:
+                if res_vel.status != 200:
+                    return None
+                
+                texto_vel = await res_vel.text()
+                latencia = int((time.time() - inicio) * 1000)
+                
+                match_loc = REGEX_PAIS.search(texto_vel)
+                pais = match_loc.group(1) if match_loc else "XX"
+                
+                is_elite = False
+                alvo_anon = random.choice(ALVOS_ANONIMATO)
+                
+                try:
+                    async with session.get(alvo_anon, proxy=proxy_url, timeout=TIMEOUT_TESTE, ssl=False) as res_anon:
+                        if res_anon.status == 200:
+                            is_elite = True 
+                except:
+                    pass
+                
+                return (proto, ip, latencia, is_elite, pais)
+        except:
+            pass
+        return None
+
+async def disparar_telemetria(mensagem):
+    if not WEBHOOK_URL:
+        return
+    async with aiohttp.ClientSession() as session:
+        payload = {"content": f"**[IMPÉRIO MUTANTE - ALERTA TÁTICO]**\n{mensagem}"}
+        try:
+            await session.post(WEBHOOK_URL, json=payload)
         except:
             pass
 
-        return (proto, ip, latencia, is_elite)
-    except:
-        pass
-    return None
+async def mutacao_principal():
+    inicio_geral = time.time()
+    print("[+] PROTOCOLO /MUTAR V4 ATIVADO: OVERCLOCK ASSÍNCRONO [+]")
+    
+    async with aiohttp.ClientSession() as session:
+        tarefas_raspagem = [raspar_site(session, url) for url in FROTA_TOTAL]
+        resultados_raspagem = await asyncio.gather(*tarefas_raspagem)
+        
+        todos_proxies = []
+        for res in resultados_raspagem:
+            todos_proxies.extend(res)
+            
+        todos_proxies = list(set(todos_proxies))
+        print(f"[+] CARRASCO: {len(todos_proxies)} IPs extraídos. Iniciando auditoria...")
+
+    vivos = {"socks5": [], "elite_socks5": [], "geo_paises": []}
+    
+    sem = asyncio.Semaphore(LIMITADOR_CONEXOES)
+    connector = aiohttp.TCPConnector(limit=LIMITADOR_CONEXOES, ssl=False)
+    
+    async with aiohttp.ClientSession(connector=connector) as session:
+        tarefas_teste = [testar_proxy(sem, session, p, ip) for p, ip in todos_proxies[:15000]]
+        resultados_teste = await asyncio.gather(*tarefas_teste)
+        
+        for resultado in resultados_teste:
+            if resultado:
+                proto, ip, latencia, is_elite, pais = resultado
+                vivos.setdefault(proto, []).append((latencia, ip))
+                vivos.setdefault("geo_paises", []).append((latencia, f"{ip}:{pais}"))
+                if is_elite:
+                    vivos.setdefault(f"elite_{proto}", []).append((latencia, ip))
+
+    resumo_logs = []
+    for chave, dados in vivos.items():
+        if dados:
+            ips_ordenados = list(dict.fromkeys([item[1] for item in sorted(dados)]))
+            with open(f"{chave}.txt", "w") as f:
+                f.write("\n".join(ips_ordenados))
+            resumo_logs.append(f"- **{chave.upper()}**: {len(ips_ordenados)} nós ativos.")
+    
+    tempo_total = time.time() - inicio_geral
+    relatorio = f"Rotação concluída em {tempo_total:.2f}s.\n" + "\n".join(resumo_logs)
+    print(relatorio)
+    await disparar_telemetria(relatorio)
 
 if __name__ == "__main__":
-    inicio_geral = time.time()
-    print(f"\n[+] PROTOCOLO /MUTAR ATIVADO [+]")
-    print(f"[+] INGESTÃO: {len(FROTA_TOTAL)} Fontes de Alta Rotação.")
-
-    todos_proxies = []
-    
-    # Extração Massiva Multi-thread
-    with concurrent.futures.ThreadPoolExecutor(max_workers=80) as executor:
-        futuros = {executor.submit(raspar_site, url): url for url in FROTA_TOTAL}
-        for futuro in concurrent.futures.as_completed(futuros):
-            res = futuro.result()
-            if res:
-                todos_proxies.extend(res)
-
-    todos_proxies = list(set(todos_proxies))
-    
-    # /CARRASCO: Trava ampliada para engolir até 25.000 IPs por ciclo de 1 hora
-    if len(todos_proxies) > 25000:
-        todos_proxies = random.sample(todos_proxies, 25000)
-
-    print(f"[+] CARRASCO: {len(todos_proxies)} IPs brutos. Disparando teste de auditoria pesada...")
-
-    vivos = {"socks5": [], "socks4": [], "http": [], "elite": []}
-
-    # Teste de Guerra e Classificação (Overclock para 300 workers)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=300) as executor:
-        futuros_teste = {executor.submit(auditoria_mutante, p): p for p in todos_proxies}
-        for futuro in concurrent.futures.as_completed(futuros_teste):
-            resultado = futuro.result()
-            if resultado:
-                proto, ip, latencia, is_elite = resultado
-                
-                vivos[proto].append((latencia, ip))
-                
-                if is_elite:
-                    vivos["elite"].append((latencia, ip))
-
-    # Exportação Tática
-    for chave in vivos:
-        if vivos[chave]:
-            nome_arquivo = f"{chave}.txt"
-            ips_ordenados = [item[1] for item in sorted(vivos[chave])]
-            ips_ordenados = list(dict.fromkeys(ips_ordenados))
-            
-            with open(nome_arquivo, "w") as f:
-                for ip in ips_ordenados:
-                    f.write(f"{ip}\n")
-            print(f"[✔] {chave.upper()}: {len(ips_ordenados)} nós armados ({nome_arquivo}).")
-
-    print(f"\n[✔] ROTAÇÃO CONCLUÍDA EM: {time.time() - inicio_geral:.2f}s")
+    if os.name == 'nt':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(mutacao_principal())
