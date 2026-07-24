@@ -1,39 +1,39 @@
-name: Império Mutante - Motor Proxy
+name: /MUTAR - Proxy Catcher V5
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
-  workflow_dispatch:
+    - cron: '*/30 * * * *' # Execução implacável a cada meia hora
+  workflow_dispatch: # Gatilho manual para execução sob demanda
 
 jobs:
-  build:
+  mutacao:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout Repo
+      uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      - name: Instalar Dependências SOBERANIA
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    - name: Instalar Arsenal
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
 
-      - name: Executar Motor Mutante
-        run: python proxy_mutante.py
-        env:
-          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+    - name: Executar Motor Mutante (Entidade 12)
+      run: python proxy_mutante.py
+      env:
+        WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }} # Opcional: Crie esse Secret no repositório para telemetria no Discord
 
-      - name: Commit and Push Novos Proxies
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add elite.txt http.txt socks4.txt socks5.txt || true
-          git commit -m "[AUTO] Arsenal Mutante Atualizado: Proxies Frescos" || echo "Sem alterações para commit"
-          git push
+    - name: Persistência de Dados (Corte e Costura)
+      run: |
+        git config --global user.name "Entidade 12 [Automação]"
+        git config --global user.email "entidade12@imperiomutante.bot"
+        git add .
+        git commit -m "⚙️ /MUTAR V5: Rotação de Frota e Geo-Roteamento sincronizados" || exit 0
+        git push
