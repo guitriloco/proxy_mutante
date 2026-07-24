@@ -4,16 +4,21 @@ import re
 import time
 import random
 import os
-import json
 import urllib3
 
 # Protocolo de Silêncio
 urllib3.disable_warnings()
 
+# Tenta carregar o motor de alta performance C (uvloop)
+try:
+    import uvloop
+except ImportError:
+    uvloop = None
+
 # ==============================================================================
 # CONFIGURAÇÃO: NÚCLEO OPERACIONAL (ENTIDADE 12)
 # ==============================================================================
-LIMITADOR_CONEXOES = 1500  # Quantas conexões simultâneas a máquina aguenta
+LIMITADOR_CONEXOES = 1500  
 TIMEOUT_TESTE = aiohttp.ClientTimeout(total=5)
 
 ALVOS_VELOCIDADE = [
@@ -36,10 +41,9 @@ AGENTES = [
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 ]
 
-# Telemetria Secreta
 WEBHOOK_URL = os.getenv('WEBHOOK_URL', '')
 
-# FROTA TOTAL (Com vírgulas corrigidas e padronizadas)
+# FROTA TOTAL 
 FROTA_TOTAL = [
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5",
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
@@ -206,7 +210,7 @@ async def disparar_telemetria(mensagem):
 
 async def mutacao_principal():
     inicio_geral = time.time()
-    print("[+] PROTOCOLO /MUTAR V4 ATIVADO: OVERCLOCK ASSÍNCRONO [+]")
+    print("[+] PROTOCOLO /MUTAR V5 ATIVADO: OVERCLOCK ASSÍNCRONO & GEO-ROTEAMENTO [+]")
     
     async with aiohttp.ClientSession() as session:
         tarefas_raspagem = [raspar_site(session, url) for url in FROTA_TOTAL]
@@ -217,31 +221,48 @@ async def mutacao_principal():
             todos_proxies.extend(res)
             
         todos_proxies = list(set(todos_proxies))
-        print(f"[+] CARRASCO: {len(todos_proxies)} IPs extraídos. Iniciando auditoria...")
+        print(f"[+] CARRASCO: {len(todos_proxies)} IPs extraídos. Iniciando auditoria total em massa...")
 
-    vivos = {"socks5": [], "elite_socks5": [], "geo_paises": []}
+    # Dicionário dinâmico, adaptável ao que vier do front de batalha
+    vivos = {}
     
     sem = asyncio.Semaphore(LIMITADOR_CONEXOES)
     connector = aiohttp.TCPConnector(limit=LIMITADOR_CONEXOES, ssl=False)
     
     async with aiohttp.ClientSession(connector=connector) as session:
-        tarefas_teste = [testar_proxy(sem, session, p, ip) for p, ip in todos_proxies[:15000]]
+        # Teto de vidro removido. Todo IP extraído é testado.
+        tarefas_teste = [testar_proxy(sem, session, p, ip) for p, ip in todos_proxies]
         resultados_teste = await asyncio.gather(*tarefas_teste)
         
         for resultado in resultados_teste:
             if resultado:
                 proto, ip, latencia, is_elite, pais = resultado
+                
+                # Rota Base
                 vivos.setdefault(proto, []).append((latencia, ip))
-                vivos.setdefault("geo_paises", []).append((latencia, f"{ip}:{pais}"))
+                
+                # Rota Elite
                 if is_elite:
                     vivos.setdefault(f"elite_{proto}", []).append((latencia, ip))
+                
+                # Rota Geopolítica (Cria fragmentação por país)
+                if pais != "XX":
+                    vivos.setdefault(f"paises/{pais}", []).append((latencia, ip))
+
+    # Criação do Infra de Diretório
+    os.makedirs("paises", exist_ok=True)
 
     resumo_logs = []
     for chave, dados in vivos.items():
         if dados:
             ips_ordenados = list(dict.fromkeys([item[1] for item in sorted(dados)]))
-            with open(f"{chave}.txt", "w") as f:
+            
+            # Persistência Tática
+            caminho = f"{chave}.txt"
+            with open(caminho, "w") as f:
                 f.write("\n".join(ips_ordenados))
+            
+            # Log formatado para o Webhook
             resumo_logs.append(f"- **{chave.upper()}**: {len(ips_ordenados)} nós ativos.")
     
     tempo_total = time.time() - inicio_geral
@@ -252,4 +273,7 @@ async def mutacao_principal():
 if __name__ == "__main__":
     if os.name == 'nt':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    elif uvloop is not None:
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        
     asyncio.run(mutacao_principal())
