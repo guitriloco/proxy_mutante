@@ -28,7 +28,7 @@ jobs:
     - name: Executar Motor Mutante (Entidade 12)
       run: python proxy_mutante.py
       env:
-        WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }} # Opcional: Crie esse Secret no repositório para telemetria no Discord
+        WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
 
     - name: Persistência de Dados (Corte e Costura)
       run: |
