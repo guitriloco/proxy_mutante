@@ -1,6 +1,2 @@
-aiohttp
-uvloop>=0.19.0
-urllib3
-fastapi
-uvicorn
-httpx
+aiohttp>=3.9.0
+urllib3>=2.0.0
